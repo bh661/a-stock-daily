@@ -11,10 +11,11 @@
     <string>__DIR__/push.sh</string>
   </array>
 
-  <!-- 源文件一变就触发：Claude 更新 artifact 页面后自动推送 -->
+  <!-- 本目录一变就触发（Claude 的定时任务把 index.html 写进来后自动推送）。
+       注意：不要把 ~/Documents 下的路径写进 WatchPaths——那里受 TCC 保护，
+       launchd 拉起的 /bin/bash 读不到，任务会以退出码 126 静默失败。 -->
   <key>WatchPaths</key>
   <array>
-    <string>__HOME__/Documents/Claude/Artifacts/a-stock-daily-screen-site</string>
     <string>__DIR__</string>
   </array>
 
