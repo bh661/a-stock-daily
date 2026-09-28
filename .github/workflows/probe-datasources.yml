@@ -1,0 +1,53 @@
+name: 探测数据源可达性
+
+# 目的：确认 GitHub 的美国 runner 能不能直接访问东财/同花顺/腾讯的行情接口。
+# 这决定了整条流水线能不能搬到 GitHub Actions 上跑（从而彻底摆脱本地 Mac）。
+# 用法：推送后到 Actions 页面点 "Run workflow" 手动跑一次，看输出。
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 北京时间 16:05 = UTC 08:05，顺便验证这个时点的数据是否已定稿
+    - cron: '5 8 * * 1-5'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 出口 IP 与地理位置
+        run: |
+          echo "出口 IP: $(curl -s --max-time 10 https://api.ipify.org || echo 取不到)"
+
+      - name: 逐个探测行情接口
+        run: |
+          probe () {
+            NAME="$1"; URL="$2"
+            CODE=$(curl -s -o /tmp/body -w '%{http_code}' --max-time 20 \
+                   -H 'User-Agent: Mozilla/5.0' -H 'Referer: https://quote.eastmoney.com/' "$URL" || echo 000)
+            SIZE=$(wc -c < /tmp/body 2>/dev/null || echo 0)
+            HEAD=$(head -c 120 /tmp/body 2>/dev/null | tr -d '\n')
+            printf '%-34s HTTP=%s  %6s bytes  %s\n' "$NAME" "$CODE" "$SIZE" "$HEAD"
+          }
+
+          echo "=== 东方财富 ==="
+          probe "push2 clist(行情列表)"      "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1&fltt=2&invt=2&fid=f5&fs=m:0+t:6&fields=f12,f14,f5,f6,f124"
+          probe "push2delay clist"            "https://push2delay.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1&fltt=2&invt=2&fid=f5&fs=m:0+t:6&fields=f12,f124"
+          probe "push2 ulist(资金流)"         "https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2&secids=1.600519,0.300750&fields=f12,f14,f62,f184,f164,f100"
+          probe "push2 details(逐笔明细)"     "https://push2.eastmoney.com/api/qt/stock/details/get?secid=1.600519&fields1=f1,f2,f3,f4,f5&fields2=f51,f52,f53,f54,f55&pos=-100000"
+          probe "push2ex 涨停池"              "https://push2ex.eastmoney.com/getTopicZTPool?ut=7eea3edcaed734bea9cbfc24409ed989&dpt=wz.ztzt&Pageindex=0&pagesize=5&sort=fbt%3Aasc&date=$(TZ=Asia/Shanghai date +%Y%m%d)"
+          probe "push2his 资金流历史"          "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?lmt=10&klt=101&fields1=f1,f2,f3,f7&fields2=f51,f52,f53,f54,f55&secid=1.600519"
+          probe "datacenter 十大流通股东"      "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_F10_EH_FREEHOLDERS&columns=SECUCODE,END_DATE,HOLDER_NAME,HOLDER_RANK,FREE_HOLDNUM_RATIO&filter=(SECUCODE%3D%22600519.SH%22)&pageNumber=1&pageSize=15&sortColumns=END_DATE%2CHOLDER_RANK&sortTypes=-1%2C1&source=HSF10&client=PC"
+
+          echo
+          echo "=== 同花顺 ==="
+          probe "同花顺 日K(all.js)"           "https://d.10jqka.com.cn/v6/line/hs_600519/01/all.js"
+          probe "同花顺 周K"                   "https://d.10jqka.com.cn/v6/line/hs_600519/11/all.js"
+
+          echo
+          echo "=== 腾讯 ==="
+          probe "腾讯 分时 day/query"          "https://web.ifzq.gtimg.cn/appstock/app/day/query?code=sh600519&num=5"
+          probe "腾讯 fqkline"                 "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh600519,day,,,10,qfq"
+
+          echo
+          echo "判读标准：HTTP=200 且 bytes 不是几百字节的错误页 → 可用。"
+          echo "若东财整片 403/000 而同花顺腾讯正常，说明东财挡了 Azure 出口 IP，需要改用境外 VPS 或代理。"

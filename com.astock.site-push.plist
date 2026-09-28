@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.astock.site-push</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__DIR__/push.sh</string>
+  </array>
+
+  <!-- 源文件一变就触发：Claude 更新 artifact 页面后自动推送 -->
+  <key>WatchPaths</key>
+  <array>
+    <string>__HOME__/Documents/Claude/Artifacts/a-stock-daily-screen-site</string>
+    <string>__DIR__</string>
+  </array>
+
+  <!-- 兜底：工作日 05:40 和 06:40（美东本地时间）各查一次，防止 WatchPaths 漏触发 -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>40</integer></dict>
+  </array>
+
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/astock-site-push.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/astock-site-push.err.log</string>
+</dict>
+</plist>
