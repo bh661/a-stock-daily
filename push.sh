@@ -31,14 +31,31 @@ sleep 45   # 防抖：等写入方落盘完毕
 cd "$DIR" || { echo "进不去目录 $DIR"; exit 1; }
 [ -d .git ] || { echo "还没 git init，先跑一次 setup.sh"; exit 1; }
 
-# --- 1. 可选：若能读到 artifact 且比本地新，就同步过来 ---
-#     手动运行时（终端有完全磁盘访问）通常可读；launchd 触发时大概率读不到，
-#     属于正常情况，不当错误处理。
-if [ -r "$ARTIFACT" ] && [ "$ARTIFACT" -nt index.html ] 2>/dev/null; then
-  if cp "$ARTIFACT" index.html 2>/dev/null; then
-    echo "已从 artifact 同步页面"
+# --- 1. 找最新的页面来源，三级兜底 ---
+#
+#   主路径：Claude 的定时任务直接把 index.html 写进本目录（需要它连接过本文件夹）
+#   兜底A ：Claude 会话的 outputs 目录里的 site.html —— 任务每天必然会生成它，
+#           且 ~/Library 不受 TCC 保护，launchd 读得到，**不需要任何授权**
+#   兜底B ：artifact 落盘文件（在 ~/Documents 下，launchd 通常读不到，仅手动运行时有效）
+#
+#   三者都只在「比当前 index.html 新」时才覆盖，避免旧文件把新页面顶回去。
+
+take () {  # $1 = 候选文件
+  [ -r "$1" ] || return 1
+  [ -s "$1" ] || return 1
+  grep -q 'A股每日条件选股' "$1" 2>/dev/null || return 1     # 必须是我们的页面
+  if [ ! -f index.html ] || [ "$1" -nt index.html ]; then
+    cp "$1" index.html && echo "已同步页面来源: $1" && return 0
   fi
-fi
+  return 1
+}
+
+SESSIONS="$HOME/Library/Application Support/Claude/local-agent-mode-sessions"
+NEWEST=$(find "$SESSIONS" -name 'site.html' -type f -mmin -720 2>/dev/null \
+         | xargs -I{} stat -f '%m %N' {} 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
+[ -n "$NEWEST" ] && take "$NEWEST"
+take "$ARTIFACT"
 
 if [ ! -f index.html ]; then
   echo "目录里没有 index.html，无可推送"; exit 1
